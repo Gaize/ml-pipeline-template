@@ -1,0 +1,6 @@
+{
+  "project_name": "My Experiment",
+  "description": "One sentence describing what this experiment tests.",
+  "__project_slug": "{{ cookiecutter.project_name.lower().replace(' ', '-').replace('_', '-') }}",
+  "_copy_without_render": ["justfile", "data/*", ".claude/hooks/*"]
+}
