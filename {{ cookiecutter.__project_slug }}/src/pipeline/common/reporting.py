@@ -1,8 +1,7 @@
-"""Threshold selection, confidence intervals, learning curves, and figures."""
+"""Classification metrics, confidence intervals, learning curves, and figures."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -13,7 +12,6 @@ from sklearn.metrics import (
     average_precision_score,
     confusion_matrix,
     f1_score,
-    fbeta_score,
     precision_recall_curve,
     precision_score,
     recall_score,
@@ -26,40 +24,10 @@ from pipeline.common.evaluation import SCORERS, make_cv
 from pipeline.common.visualization import default_layout
 
 
-def fbeta_optimal_threshold(
-    y_true: pd.Series, y_score: pd.Series, beta: float
-) -> tuple[float, float]:
-    """Return the threshold maximizing F-beta, and the score it achieves.
-
-    Beta below 1 weights precision; above 1 weights recall.
-    """
-    precision, recall, thresholds = precision_recall_curve(y_true, y_score)
-    # precision_recall_curve returns one more point than thresholds.
-    precision, recall = precision[:-1], recall[:-1]
-    beta_sq = beta**2
-    denominator = beta_sq * precision + recall
-    with np.errstate(divide="ignore", invalid="ignore"):
-        scores = np.where(denominator > 0, (1 + beta_sq) * precision * recall / denominator, 0.0)
-    best = int(np.argmax(scores))
-    return float(thresholds[best]), float(scores[best])
-
-
-def youdens_j_threshold(y_true: pd.Series, y_score: pd.Series) -> tuple[float, float]:
-    """Return the threshold maximizing Youden's J, and the J it achieves.
-
-    J is `sensitivity + specificity - 1`, which weights both classes equally
-    regardless of how imbalanced the labels are.
-    """
-    fpr, tpr, thresholds = roc_curve(y_true, y_score)
-    j = tpr - fpr
-    best = int(np.argmax(j))
-    return float(thresholds[best]), float(j[best])
-
-
 def classification_metrics(
-    y_true: pd.Series, y_score: pd.Series, threshold: float, beta: float
+    y_true: pd.Series, y_score: pd.Series, threshold: float
 ) -> dict[str, float]:
-    """Return threshold-free and thresholded metrics for one set of scores."""
+    """Return the metrics for one set of scores at one threshold."""
     y_pred = (np.asarray(y_score) >= threshold).astype(int)
     return {
         "roc_auc": float(roc_auc_score(y_true, y_score)),
@@ -69,7 +37,6 @@ def classification_metrics(
         "precision": float(precision_score(y_true, y_pred, zero_division=0)),
         "recall": float(recall_score(y_true, y_pred, zero_division=0)),
         "f1": float(f1_score(y_true, y_pred, zero_division=0)),
-        f"f{beta:g}": float(fbeta_score(y_true, y_pred, beta=beta, zero_division=0)),
     }
 
 
@@ -265,36 +232,3 @@ def score_distribution_figure(y_true: pd.Series, y_score: pd.Series, threshold: 
     fig.update_xaxes(title="Score")
     fig.update_yaxes(title="Rows")
     return default_layout(fig, "Out-of-fold score distribution")
-
-
-def shap_importance(estimator: Any, X: pd.DataFrame, max_rows: int = 200) -> pd.DataFrame | None:
-    """Return mean absolute SHAP value per feature, or None if unavailable.
-
-    Returns None rather than raising when the estimator has no supported
-    explainer, so a reporting run is never lost to an optional figure.
-    """
-    import shap
-
-    sample = X.head(max_rows)
-    try:
-        explainer = shap.Explainer(estimator.predict_proba, sample)
-        explanation = explainer(sample)
-        values = np.asarray(explanation.values)  # ty: ignore[unresolved-attribute]
-    except Exception:  # noqa: BLE001 - any explainer failure degrades to no figure
-        return None
-
-    # predict_proba explains both classes; the positive class is the last column.
-    per_feature = np.abs(values[..., -1]) if values.ndim == 3 else np.abs(values)
-    importance = pd.DataFrame(
-        {"feature": list(sample.columns), "mean_abs_shap": per_feature.mean(axis=0)}
-    )
-    return importance.sort_values("mean_abs_shap", ascending=False).reset_index(drop=True)
-
-
-def shap_importance_figure(importance: pd.DataFrame) -> go.Figure:
-    """Return feature importance as a bar chart, most influential at the top."""
-    top = importance.head(30).iloc[::-1]
-    fig = go.Figure(go.Bar(x=top["mean_abs_shap"], y=top["feature"], orientation="h"))
-    fig.update_xaxes(title="Mean |SHAP value|")
-    fig.update_layout(height=max(320, 22 * len(top)))
-    return default_layout(fig, "Feature importance")

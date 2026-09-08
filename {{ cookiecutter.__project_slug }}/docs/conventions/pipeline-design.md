@@ -1,93 +1,91 @@
 # Pipeline design
 
-The design contract for pipeline code. It answers *what shape should this take?*
+This document tells you what shape new code must have.
 
-Layer roles are in `docs/layers.md`; cache-key and settings mechanics are in
-`python-coding.md`; logging is in `observability.md`.
+The function of each layer is in `docs/layers.md`. The rules for the cache and
+for settings are in `python-coding.md`. The rules for logging are in
+`observability.md`.
 
-## Design forward from the dataflow
+## Start from the flow of the data
 
-**A pipeline is a short sequence of named stages. Write that sequence as one
-sentence before you write code** — *load the table → clean it → compute features
-→ tune → score out of fold → report* — because it is the specification for
-`run()`.
+A pipeline is a short sequence of stages. Write that sequence as one sentence
+before you write code. For example: read the table, clean it, calculate the
+features, search the parameters, score the rows, and report.
 
-Every module and function you add exists to make that sequence easy to read at
-the entry point. Decide the stages first, then give each stage a home.
+That sentence is the specification for `run()`. Each module and function that you
+add must make the sentence easier to read.
 
-## Four call levels
+## Four levels
 
-1. **Pipeline** — a runnable CLI. Its body is the dataflow: one line per stage in
-   layer order. Its only branches validate inputs.
-2. **Subpipeline** — `@subpipeline`: an uncached composition. Its body calls steps
-   and packs results. Two entry points sharing a stage call the same subpipeline;
-   inlined copies of a call list are how two paths drift apart.
-3. **Step** — `@step`: one cached stage, a load or a whole-dataset computation.
-4. **Compute** — undecorated maths. The step is the seam between the pipeline and
-   the library.
+1. **Pipeline** — a command-line program. Its body is the sequence of stages, one
+   line for each stage. It has no other branches.
+2. **Subpipeline** — `@subpipeline`. It joins steps together and uses no cache.
+   Two programs that share a stage must call the same subpipeline.
+3. **Step** — `@step`. One stage with a cache. It reads data or calculates a
+   result for the full dataset.
+4. **Calculation** — a function with no decorator.
 
-**Aftereffects attach to `@step` and `@subpipeline` only.** On a plain function
-the metadata is inert and never runs.
+Aftereffects operate on a `@step` or a `@subpipeline` only. On other functions
+they do nothing.
 
-## Call libraries from the step
+## Call the library from the step
 
-A step calls scikit-learn, numpy, or scipy directly. Don't wrap a library in an
-adapter to isolate it; the step is already that seam.
+A step calls scikit-learn, numpy, or scipy directly. Do not write an adapter
+around a library. The step is already the connection to the library.
 
-Your own computation is inline by default. Give it a function or module only when
-it has a second caller, or is non-trivial maths worth testing alone.
+Keep your own calculations in the step. Move a calculation into its own function
+only if a second caller needs it, or if it is complex and needs its own test.
 
-## Data grows horizontally; results are columns
+## Results are columns, not objects
 
-**A value computed for each row becomes a column on the frame that flows onward.**
-That is how downstream steps read it and how it reaches observability. Don't model
-a table of per-row results as a collection of objects — that table is a DataFrame.
+A value that you calculate for each row becomes a column on the frame. The next
+step reads the column, and the aftereffects can also read it. Do not make a list
+of objects for results that a table can hold.
 
-Classes are for configuration handed to a step, typed contracts, and fitted state.
-Not for tabular results that could be columns.
+Use a class for configuration, for a contract, or for state. Do not use a class
+for tabular results.
 
-## A step that drops rows returns what survived and what it dropped
+## A step that removes rows must report the removals
 
-`intermediate_to_primary` returns `(df, FilterChain)`. Return the drop record as
-data, not a log line, so an aftereffect can report per-rule survival every run.
+`intermediate_to_primary` returns the rows that remain and a `FilterChain`. Give
+the record of the removals as data, and not as a log message. An aftereffect can
+then report it at each run.
 
-## The model produces a score; a separate layer turns scores into decisions
+## The model gives a score. A different layer makes the decision
 
-**L06 emits `y_score`.** Thresholds live downstream in L08. A scorer with no policy
-baked in stays reusable, and a policy kept separate stays changeable without
-retraining.
+L06 gives `y_score`. L08 applies the threshold. An estimator with no threshold is
+easier to use again, and you can change the threshold without a new fit.
 
-## Every tunable is a settings field, passed as an argument
+## Each configurable value is a settings field and a step argument
 
-**A value that can be tuned is a documented `settings.py` field, passed to the
-top-level step as an argument defaulted from settings.** Reading `settings.foo`
-inside a step body is a cache bug — see `python-coding.md`.
+Put each configurable value in `settings.py` with a docstring. Give it to the
+top-level step as an argument with a default. Do not read `settings.foo` in a
+step body: this is a cache defect. See `python-coding.md`.
 
-Couple values that must agree with `@computed_field` so they cannot drift, and
-group related knobs into nested blocks.
+Use `@computed_field` for values that must agree with each other. Put related
+values in a nested block.
 
-## A constant is either derived or an explicit assumption
+## A constant is calculated or it is a stated assumption
 
-Derive a constant from first principles or from the data, and it carries its own
-explanation. When you must choose a number outright, put it in `settings.py` and
-say in the docstring that it is a choice.
+Calculate a constant from the data or from first principles, and it explains
+itself. If you must select a number, put it in `settings.py`. Write in the
+docstring that it is a selection.
 
-## Cache every load and computation
+## Put a cache on each read and each calculation
 
-**Loading data is a cached step like any other.** When a step's result depends on
-code its arguments do not describe, hash that source and pass the hash in, as
-`architecture_fingerprint()` does, so editing the code invalidates the cache.
+A data read is a step with a cache, like all other steps. If the result of a step
+depends on code that its arguments do not describe, make a hash of that code and
+give the hash to the step. `architecture_fingerprint()` does this.
 
-## Before you write
+## Before you write code
 
-1. State the dataflow in one sentence. That is what `run()` should read like.
-2. Search for a step or function that already does the job, and call it.
-3. Place each piece: pipeline = dataflow, subpipeline = composition, step = cached
-   stage, compute = maths.
-4. Tunables become settings fields passed as arguments.
-5. Per-row results are columns; classes are for config, contracts, and state.
+1. Write the flow of the data as one sentence. `run()` must read like it.
+2. Look for a step or a function that already does the work.
+3. Select the level for each part: pipeline, subpipeline, step, or calculation.
+4. Make each configurable value a settings field and a step argument.
+5. Make per-row results into columns.
 
-## The litmus test
+## The test
 
-Read `run()` top to bottom. If a module, wrapper, or class does not make the
-one-sentence dataflow easier to see, it has not earned its place.
+Read `run()` from the first line to the last. If a module, a wrapper, or a class
+does not make the sentence easier to read, remove it.

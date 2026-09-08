@@ -6,15 +6,18 @@ paths:
   - "*.md"
 ---
 
-Before writing a docstring, a comment, or a document, read and follow
+Before you write a docstring, a comment, or a document, read and obey
 @docs/conventions/python-documentation.md.
 
-Budgets: a docstring is a summary line plus at most three lines of prose; a module
-docstring is at most five lines; a file you create is under 25% comment and
-docstring lines. `settings.py` is exempt from the ratio only.
+Write in simple English. Use short sentences and the active voice. Use one idea
+in each sentence.
 
-Comments say what the code **is**, not how it got here. No research narrative —
-that is a finding, and it belongs in the report.
+Limits: a docstring is a summary line and 3 lines of text. A module docstring is
+5 lines. A new file has less than 25% comment and docstring lines. Only
+`settings.py` does not obey the 25% limit.
 
-A docstring or document asserting a fact is a claim you must defend against a
-source you have actually read.
+A comment says what the code is, and not how it got there. Do not put research in
+the code. That is a result, and it belongs in the report.
+
+If a docstring or a document states a fact, you must be able to prove the fact
+against a source that you read.

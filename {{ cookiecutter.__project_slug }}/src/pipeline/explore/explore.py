@@ -8,7 +8,6 @@ belong here.
 import logging
 
 import click
-import matplotlib
 import mlflow
 
 from pipeline.common.l05_model_input import build_model_input, to_model_input
@@ -23,8 +22,6 @@ from pipeline.common.observability import (
 )
 from pipeline.common.submission import write_submission
 from pipeline.settings import settings
-
-matplotlib.use("Agg")
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +38,7 @@ logger = logging.getLogger(__name__)
     "--override-threshold",
     type=float,
     default=None,
-    help="Use this operating threshold instead of the F-beta optimum.",
+    help="Use this operating threshold instead of settings.reporting.threshold.",
 )
 @click.option(
     "--submit",

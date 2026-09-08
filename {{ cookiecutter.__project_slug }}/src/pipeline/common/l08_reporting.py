@@ -1,10 +1,9 @@
-"""L08 Reporting: turn out-of-fold scores into metrics, a threshold, and figures.
+"""L08 Reporting: turn out-of-fold scores into metrics and figures.
 
-The threshold is chosen here rather than in L06, so the model stays a scorer and
-the operating point can change without refitting anything.
+The threshold is applied here and not in L06. The model stays a scorer, and you
+can change the operating point without a new fit.
 """
 
-import logging
 from typing import Annotated, NamedTuple
 
 import mlflow
@@ -21,21 +20,15 @@ from pipeline.common.reporting import (
     bootstrap_confidence_interval,
     classification_metrics,
     confusion_figure,
-    fbeta_optimal_threshold,
     learning_curve_figure,
     learning_curve_points,
     permutation_figure,
     precision_recall_figure,
     roc_figure,
     score_distribution_figure,
-    shap_importance,
-    shap_importance_figure,
-    youdens_j_threshold,
 )
 from pipeline.common.visualization import log_figure_html
 from pipeline.settings import settings
-
-logger = logging.getLogger(__name__)
 
 L_PRE = "08_reporting"
 
@@ -77,17 +70,8 @@ def build_reporting(
     """Evaluate the out-of-fold scores and return the report."""
     y_true, y_score = out_of_fold["y_true"], out_of_fold["y_score"]
 
-    fbeta_threshold, fbeta_value = fbeta_optimal_threshold(
-        y_true, y_score, settings.reporting.fbeta
-    )
-    j_threshold, j_value = youdens_j_threshold(y_true, y_score)
-    threshold = override_threshold if override_threshold is not None else fbeta_threshold
-
-    metrics = classification_metrics(y_true, y_score, threshold, settings.reporting.fbeta)
-    metrics["threshold_fbeta"] = fbeta_threshold
-    metrics["threshold_youden_j"] = j_threshold
-    metrics["youden_j"] = j_value
-    metrics["fbeta_at_threshold"] = fbeta_value
+    threshold = settings.reporting.threshold if override_threshold is None else override_threshold
+    metrics = classification_metrics(y_true, y_score, threshold)
 
     for metric in ("roc_auc", "average_precision"):
         _, lower, upper = bootstrap_confidence_interval(
@@ -131,13 +115,6 @@ def build_reporting(
         metrics["permutation_p_value"] = p_value
         metrics["permutation_null_mean"] = float(permuted.mean())
         figures["permutation_test"] = permutation_figure(observed, permuted, p_value)
-
-    if settings.reporting.shap_enabled:
-        importance = shap_importance(estimator, data.X)
-        if importance is None:
-            logger.warning("SHAP values unavailable for this estimator; skipping the figure.")
-        else:
-            figures["shap_importance"] = shap_importance_figure(importance)
 
     return Report(
         metrics=metrics,

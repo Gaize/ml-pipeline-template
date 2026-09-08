@@ -10,9 +10,9 @@ echo "==> Scaffolding into $workdir"
 cd "$workdir"
 cookiecutter "$template_root" --no-input project_name="Template Test"
 
-generated="$(find "$workdir" -maxdepth 1 -type d -name '*-template-test' | head -1)"
-if [ -z "$generated" ]; then
-    echo "Scaffold produced no directory" >&2
+generated="$workdir/template-test"
+if [ ! -d "$generated" ]; then
+    echo "Scaffold produced no directory at $generated" >&2
     exit 1
 fi
 cd "$generated"

@@ -1,7 +1,7 @@
-"""L07 Model output: run the model and produce an honest score for every row.
+"""L07 Model output: give each row a score from a model that did not use it.
 
-Each row is scored by a model that never saw it during fitting, so the scores
-L08 evaluates are not the scores of a model grading its own training data.
+Each row gets its score from a model that was fitted without that row. L08
+therefore measures the scores of unseen data.
 """
 
 from typing import Annotated

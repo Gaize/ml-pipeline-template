@@ -5,13 +5,13 @@ paths:
   - "src/pipeline/common/visualization.py"
 ---
 
-Before writing or modifying a step, an effect, or a figure, read and follow
+Before you write or change a step, an effect, or a figure, read and obey
 @docs/conventions/observability.md.
 
-**Never log from inside a step body.** It runs only on a cache miss, so a rerun
-that hits cache produces an empty MLflow run. Attach an aftereffect to the return
-annotation instead.
+**Do not write a log statement in a step body.** It runs only on a cache miss, so
+a run that uses the cache gives an empty MLflow run. Put an aftereffect on the
+return annotation.
 
-**An aftereffect on an undecorated function never runs.** It type-checks and does
-nothing. If you add one, confirm the function carries `@step_decorator`, `@step`,
-or `@subpipeline`.
+**An aftereffect on a function with no decorator does not run.** It passes the
+type check and it does nothing. If you add one, make sure that the function has
+`@step_decorator`, `@step`, or `@subpipeline`.

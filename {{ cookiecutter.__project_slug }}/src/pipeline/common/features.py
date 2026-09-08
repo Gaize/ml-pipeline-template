@@ -6,8 +6,8 @@ import pandas as pd
 def compute_features(df: pd.DataFrame, reserved_cols: tuple[str, ...]) -> pd.DataFrame:
     """Return the numeric feature columns of `df`, excluding the reserved ones.
 
-    This is the seam to extend: derive new columns from `df` and return them
-    alongside the passthrough features.
+    Extend this function to add features. Calculate new columns from `df` and
+    return them with the columns that pass through.
     """
     numeric = df.select_dtypes("number")
     feature_cols = [c for c in numeric.columns if c not in reserved_cols]

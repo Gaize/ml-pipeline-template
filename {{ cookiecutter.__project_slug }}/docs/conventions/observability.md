@@ -1,22 +1,24 @@
 # Observability
 
-The goal: a run produces useful signal **even when every step hits cache**.
-Silent cached steps are how observability quietly rots.
+A run must give useful information, and this includes a run where each step uses
+the cache. Steps that use the cache and give no information make the pipeline
+difficult to examine.
 
-## Use aftereffects, not inline logging
+## Use aftereffects, not log statements
 
-**Logging inside a `@step` body only runs when the step actually executes.** On a
-cache hit you see nothing. An aftereffect is a callback attached to a step's
-return annotation that runs whenever the value is materialized, cache included.
+A log statement in a `@step` body runs only when the step runs. On a cache hit
+you see nothing. An aftereffect is a callback on the return annotation of a step.
+It runs each time the value becomes available, and this includes a value from the
+cache.
 
 ```python
-# Bad — fires only on a cache miss
+# Incorrect. This runs only on a cache miss.
 @step_decorator
 def join_features_and_labels(...) -> pd.DataFrame:
     logger.info("class distribution: %s", out[target_col].value_counts())
     return out
 
-# Good — runs on every materialization
+# Correct. This runs each time the value becomes available.
 @step_decorator
 def join_features_and_labels(...) -> Annotated[
     pd.DataFrame, ClassBalanceLogger(L_PRE, settings.target_col)
@@ -24,44 +26,40 @@ def join_features_and_labels(...) -> Annotated[
     return out
 ```
 
-Use them for class balance, row counts, filter survival, MLflow artifacts, and
-any "what just happened" summary the user wants regardless of cache state.
+Use an aftereffect for the class balance, the row counts, the survival of a
+filter, the MLflow artifacts, and each summary that the user needs.
 
-**An aftereffect on a plain function is inert.** It type-checks, raises nothing,
-and never runs. `tests/common/test_effects.py` guards against this, because
-nothing else would tell you.
+An aftereffect on a function with no decorator does nothing. It passes the type
+check and it does not run. `tests/common/test_effects.py` finds this error.
 
-## MLflow artifacts even on a cache hit
+## MLflow artifacts on a cache hit
 
-If a step logs its metrics inside its body, a cached rerun produces an empty
-MLflow run. Move metric and artifact logging into an aftereffect that takes the
-returned value. The tracking surface is then always populated, however much was
-reused.
+If a step writes its metrics in its body, a run that uses the cache gives an
+empty MLflow run. Put the metrics and the artifacts in an aftereffect that reads
+the returned value. The MLflow run is then always complete.
 
-## Multi-step reporting belongs on the subpipeline
+## A report on more than one step belongs on the subpipeline
 
-An aftereffect sees one function's return value. A visualization that needs data
-from several steps goes on the subpipeline that returns them — its effects see
-the whole result and fire on every call, because a subpipeline is never cached.
+An aftereffect reads the result of one function. If a figure needs data from more
+than one step, put the aftereffect on the subpipeline that returns them. A
+subpipeline has no cache, so its aftereffects run at each call.
 
-## Prefer tqdm to per-iteration logging
+## Use tqdm, not a log statement in a loop
 
-For any loop with a non-trivial iteration count — folds, search iterations —
-use `tqdm`, not `logger.info`.
+For a loop with many iterations, use `tqdm`.
 
-1. **Always set `total=`** so the bar can show an ETA.
-2. **Gate it behind a `show_progress: bool = False` argument** on the top-level
-   step. Progress bars are good interactively and noise everywhere else; the
-   caller decides.
+1. Always set `total=`, so that the bar can show the remaining time.
+2. Control it with a `show_progress: bool = False` argument on the top-level
+   step. A progress bar is useful for a person and not useful in a log file.
 
-## Filtering observability
+## Report the effect of a filter
 
-When something drops rows, **log how many survived each rule**, not just the final
-count. "Where did all my data go?" is the most common debugging question — answer
-it before it is asked. That is what `FilterChain` and `FilterReportEffect` are for.
+When code removes rows, report how many rows each rule removed. Do not report the
+final count only. "Where did the data go?" is the usual question, and
+`FilterChain` and `FilterReportEffect` answer it.
 
-## Don't couple observability into business logic
+## Keep observability out of the logic
 
-If an observability change requires restructuring a step's return type or adding
-a parameter that exists only for logging, stop and use an aftereffect. Logging
-should be additive; the code path should not know it is being watched.
+If a change to the reporting needs a different return type, or a new parameter
+that only the logging uses, stop. Use an aftereffect. The code must not know that
+you examine it.

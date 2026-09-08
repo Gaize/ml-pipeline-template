@@ -32,9 +32,8 @@ class Training(BaseModel):
 class Reporting(BaseModel):
     """Evaluation and figure configuration for L08."""
 
-    fbeta: float = 1.0
-    """Beta for the F-beta operating threshold. Below 1 weights precision (a false
-    positive costs more than a false negative); above 1 weights recall."""
+    threshold: float = 0.5
+    """Score at or above which a row is called positive."""
 
     n_bootstrap: int = 1000
     """Resamples used for the confidence interval around each headline metric."""
@@ -45,9 +44,6 @@ class Reporting(BaseModel):
 
     learning_curve_sizes: tuple[float, ...] = (0.2, 0.4, 0.6, 0.8, 1.0)
     """Training-set fractions at which the learning curve is evaluated."""
-
-    shap_enabled: bool = True
-    """Whether L08 computes SHAP values. Disable when the estimator is slow to explain."""
 
 
 class Settings(BaseSettings):

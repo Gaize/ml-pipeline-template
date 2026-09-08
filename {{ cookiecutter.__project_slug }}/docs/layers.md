@@ -1,99 +1,100 @@
 # The layers
 
-The pipeline is eight numbered modules in `src/pipeline/common/`, run in order.
-The numbering follows [Kedro's layered data engineering
+The pipeline has eight numbered modules in `src/pipeline/common/`. They run in
+order. The numbers agree with the [Kedro data engineering
 convention](https://docs.kedro.org/en/stable/faq/faq.html#what-is-data-engineering-convention).
-Each layer answers one question about how far the data has come.
+Each layer answers one question about the condition of the data.
 
-| Layer | Module | What lives here |
+| Layer | Module | Contents |
 |---|---|---|
-| L01 Raw | `l01_raw.py` | Load the source table unchanged. |
-| L02 Intermediate | `l02_intermediate.py` | Type it, and derive the columns later layers need. |
-| L03 Primary | `l03_primary.py` | Drop what cannot be modelled; record what was dropped. |
-| L04 Feature | `l04_feature.py` | Compute features. No labels. |
-| L05 Model input | `l05_model_input.py` | Join features to labels and groups. |
-| L06 Models | `l06_models.py` | Define, search, and fit the estimator. |
-| L07 Model output | `l07_model_output.py` | Score every row out of fold. |
-| L08 Reporting | `l08_reporting.py` | Metrics, threshold, figures. |
+| L01 Raw | `l01_raw.py` | Reads the source table without changes. |
+| L02 Intermediate | `l02_intermediate.py` | Sets the types and makes the necessary columns. |
+| L03 Primary | `l03_primary.py` | Removes data that the model cannot use, and records what it removed. |
+| L04 Feature | `l04_feature.py` | Calculates the features. It does not use the label. |
+| L05 Model input | `l05_model_input.py` | Joins the features to the labels and the groups. |
+| L06 Models | `l06_models.py` | Defines the estimator, searches its parameters, and fits it. |
+| L07 Model output | `l07_model_output.py` | Gives each row an out-of-fold score. |
+| L08 Reporting | `l08_reporting.py` | Calculates the metrics and makes the figures. |
 
-`explore.py` calls them in that order, and its body is the whole experiment.
+`explore.py` calls the layers in this order. Its body is the full experiment.
 
-## Layer roles are not interchangeable
+## Do not do work in the wrong layer
 
-The most common way this structure decays is doing work one layer early because
-it is convenient there.
+This structure fails when you do work one layer too early, because it is easier
+there.
 
-- **L01 loads. It does not filter, enrich, or cast.** Keeping it narrow keeps its
-  cache key stable, so editing a later layer never re-reads the source.
-- **L02 is where typing and derivation happen.** The group column is derived here,
-  so every layer below sees the same frame whether grouping is on or off.
-- **L03 drops rows and columns**, and returns a `FilterChain` recording what each
-  rule removed. "Where did my data go?" is answered before anyone asks.
-- **L04 produces features and never sees the label.** A feature computed from the
-  target is the fastest way to a score that means nothing.
-- **L07 runs the model. It does not train one** — that is L06 — **and it does not
-  evaluate** — that is L08.
+- **L01 reads the data. It does not filter, add, or convert.** A small L01 keeps
+  its cache key stable, so an edit to a later layer does not read the source
+  again.
+- **L02 sets the types and makes the derived columns.** It makes the group
+  column. All layers below L02 therefore get the same frame.
+- **L03 removes rows and columns.** It returns a `FilterChain` that records the
+  effect of each rule.
+- **L04 makes the features and does not use the label.** A feature that comes
+  from the label gives a score with no meaning.
+- **L07 runs the model. L06 trains it, and L08 measures it.**
 
-If you are working in the wrong layer because it is easier, move it.
+If you work in the wrong layer because it is easier, move the code.
 
-## Where to add things
+## Where to make a change
 
-| You want to | Edit |
+| Objective | File to edit |
 |---|---|
-| Read a different dataset | `settings.data_path`, and `l02_intermediate.py` if the label or group needs deriving |
+| Read a different dataset | `settings.data_path`, and `l02_intermediate.py` if the label or the group needs a calculation |
 | Add a feature | `features.py` |
-| Drop bad rows | `l03_primary.py` |
+| Remove bad rows | `l03_primary.py` |
 | Change the model or its grid | `make_estimator` and `PARAM_GRID` in `l06_models.py` |
-| Change how folds are made | `settings.group_col`, `settings.training` |
-| Add a metric or figure | `reporting.py`, then wire it into `build_reporting` |
+| Change the folds | `settings.group_col` and `settings.training` |
+| Change the operating threshold | `settings.reporting.threshold` |
+| Add a metric or a figure | `reporting.py`, then `build_reporting` |
 
-## Steps, subpipelines, and computes
+## Steps, subpipelines, and calculations
 
-Four levels, and the level decides whether a thing is cached and whether its
-aftereffects run.
+There are four levels. The level controls the use of the cache, and it controls
+whether the aftereffects run.
 
-1. **Pipeline** — the CLI (`explore.py:run`). Its body is the dataflow: one line
-   per stage, in layer order.
-2. **Subpipeline** — `@subpipeline`. Composes steps and caches nothing. Its
-   aftereffects fire on every call, which is why cross-step reporting lives here.
-3. **Step** — `@step`. One cached stage. Defaults sit on the top-level step only.
-4. **Compute** — undecorated maths. The step is the seam between the pipeline and
-   the library.
+1. **Pipeline** — the command-line program (`explore.py:run`). Its body is the
+   sequence of layers, one line for each stage.
+2. **Subpipeline** — `@subpipeline`. It joins steps together and uses no cache.
+   Its aftereffects run at each call.
+3. **Step** — `@step`. One stage, with a cache. Only the top-level step has
+   default values.
+4. **Calculation** — a function with no decorator. The step connects the pipeline
+   to the library.
 
-### Defaults belong on the top-level step
+### Default values belong on the top-level step
 
-KissML caches a step's return value by hashing its arguments. A value read from
-`settings` inside a body never moves the hash, so the cache will not invalidate
-when you change it.
+KissML makes the cache key from the arguments of the step. A value that the body
+reads from `settings` is not an argument. The cache therefore does not clear when
+you change that value.
 
 ```python
-# Correct — the default is on the step, so changing it re-keys the cache
+# Correct. The default is an argument, so a change clears the cache.
 @step_decorator
 def load_raw(data_path: Path = settings.data_path) -> pd.DataFrame: ...
 
-# Wrong — the cache cannot see this setting change
+# Incorrect. The cache cannot see this change.
 @step_decorator
 def load_raw() -> pd.DataFrame:
     return pd.read_csv(settings.data_path)
 ```
 
-When a step's output depends on code its arguments do not describe — the
-estimator definition, the feature code — hash that source and pass it in.
-`architecture_fingerprint()` and `source_fingerprint()` do this.
+If the result of a step depends on code that the arguments do not describe, make
+a hash of that code and give it to the step. `architecture_fingerprint()` and
+`source_fingerprint()` do this.
 
-## Out-of-fold scoring, and the two models
+## Out-of-fold scores, and the two models
 
-L07 scores each row with a model fitted on the folds that excluded it. Those are
-the scores L08 evaluates, so the reported number is not a model grading its own
-training data.
+L07 gives each row a score from a model that did not use that row. L08 measures
+these scores. The reported value is therefore not a measurement of the training
+data.
 
-`--submit` fits a *second* model, on every row, using the same hyperparameters.
-That is the model you would ship. It has no honest score of its own, which is
-exactly why the two live in different places.
+`--submit` fits a second model on all rows with the same parameters. This is the
+model that you would deliver. It has no score of its own. For this reason the two
+models are in different places.
 
-## Reading a run
+## To read a run
 
-Every layer writes its artifacts under its own prefix — `01_raw/`,
-`04_feature/`, `08_reporting/`. Because the logging happens in aftereffects
-rather than step bodies, a fully-cached rerun still produces a complete MLflow
-run.
+Each layer writes its artifacts under its own prefix: `01_raw/`, `04_feature/`,
+`08_reporting/`. Aftereffects write these artifacts, and not the step bodies. A
+run that uses the cache is therefore complete.

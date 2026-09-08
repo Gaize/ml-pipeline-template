@@ -18,7 +18,7 @@ def configure_logging(level: str) -> None:
         format="%(asctime)s %(levelname)-7s %(name)s | %(message)s",
         datefmt="%H:%M:%S",
     )
-    for noisy in ("matplotlib", "shap", "numba", "urllib3", "git"):
+    for noisy in ("urllib3", "git"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 

@@ -84,9 +84,8 @@ def iterated_grid_search(
 def select_representative(results: pd.DataFrame) -> pd.DataFrame:
     """Mark the iteration whose score is closest to the mean across iterations.
 
-    Building from the typical iteration rather than the best one keeps the reported
-    score an estimate of what the next split would give, instead of the luckiest
-    one already seen.
+    The typical iteration is a better estimate of the result of the next split
+    than the best iteration is.
     """
     out = results.copy()
     out["distance_from_mean"] = (out["best_score"] - out["best_score"].mean()).abs()

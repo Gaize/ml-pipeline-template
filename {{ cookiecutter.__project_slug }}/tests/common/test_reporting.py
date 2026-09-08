@@ -2,12 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pipeline.common.reporting import (
-    bootstrap_confidence_interval,
-    classification_metrics,
-    fbeta_optimal_threshold,
-    youdens_j_threshold,
-)
+from pipeline.common.reporting import bootstrap_confidence_interval, classification_metrics
 
 
 @pytest.fixture
@@ -17,28 +12,17 @@ def separable() -> tuple[pd.Series, pd.Series]:
     return y_true, y_score
 
 
-def test_fbeta_threshold_separates_the_classes(separable):
-    threshold, score = fbeta_optimal_threshold(*separable, beta=1.0)
-    assert 0.4 < threshold <= 0.6
-    assert score == pytest.approx(1.0)
-
-
-def test_a_low_beta_does_not_lower_the_threshold(separable):
-    precision_weighted, _ = fbeta_optimal_threshold(*separable, beta=0.5)
-    recall_weighted, _ = fbeta_optimal_threshold(*separable, beta=2.0)
-    assert precision_weighted >= recall_weighted
-
-
-def test_youden_j_is_one_for_perfect_separation(separable):
-    _, j = youdens_j_threshold(*separable)
-    assert j == pytest.approx(1.0)
-
-
 def test_metrics_report_a_perfect_split(separable):
-    metrics = classification_metrics(*separable, threshold=0.5, beta=1.0)
+    metrics = classification_metrics(*separable, threshold=0.5)
     assert metrics["roc_auc"] == pytest.approx(1.0)
     assert metrics["precision"] == pytest.approx(1.0)
     assert metrics["recall"] == pytest.approx(1.0)
+
+
+def test_a_high_threshold_trades_recall_for_precision(separable):
+    strict = classification_metrics(*separable, threshold=0.95)
+    assert strict["recall"] < 1.0
+    assert strict["precision"] == pytest.approx(1.0)
 
 
 def test_confidence_interval_brackets_the_point_estimate(separable):

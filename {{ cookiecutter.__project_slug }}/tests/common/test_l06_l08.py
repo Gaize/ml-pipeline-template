@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+from sklearn.pipeline import Pipeline
 
 from pipeline.common.l02_intermediate import raw_to_intermediate
 from pipeline.common.l03_primary import intermediate_to_primary
@@ -26,6 +27,16 @@ def search_results(model_input) -> pd.DataFrame:
     return search_hyperparameters(model_input, n_iterations=2, n_splits=3)
 
 
+@pytest.fixture
+def estimator(model_input, search_results) -> Pipeline:
+    return train_model(model_input, search_results)
+
+
+@pytest.fixture
+def out_of_fold(model_input, search_results) -> pd.DataFrame:
+    return score_out_of_fold(model_input, search_results, n_splits=3)
+
+
 def test_estimator_scales_inside_the_pipeline():
     assert "scale" in dict(make_estimator().named_steps)
 
@@ -44,35 +55,29 @@ def test_representative_iteration_is_not_the_best_by_construction(search_results
     assert representative <= search_results["best_score"].max()
 
 
-def test_train_model_fits_on_every_row(model_input, search_results):
-    estimator = train_model(model_input, search_results)
+def test_train_model_fits_on_every_row(model_input, estimator):
     assert estimator.predict_proba(model_input.drop(columns=["status", "subject"])).shape == (
         len(model_input),
         2,
     )
 
 
-def test_out_of_fold_scores_every_row_exactly_once(model_input, search_results):
-    out = score_out_of_fold(model_input, search_results, n_splits=3)
-    assert len(out) == len(model_input)
-    assert out["y_score"].notna().all()
-    assert set(out["fold"]) == {0, 1, 2}
+def test_out_of_fold_scores_every_row_exactly_once(model_input, out_of_fold):
+    assert len(out_of_fold) == len(model_input)
+    assert out_of_fold["y_score"].notna().all()
+    assert set(out_of_fold["fold"]) == {0, 1, 2}
 
 
-def test_reporting_produces_metrics_and_figures(model_input, search_results):
-    out = score_out_of_fold(model_input, search_results, n_splits=3)
-    estimator = train_model(model_input, search_results)
-    report = build_reporting(out, model_input, estimator, permutation_test=False)
+def test_reporting_produces_metrics_and_figures(model_input, out_of_fold, estimator):
+    report = build_reporting(out_of_fold, model_input, estimator, permutation_test=False)
 
     assert 0.0 <= report.metrics["roc_auc"] <= 1.0
     assert "roc_auc_ci_lower" in report.metrics
     assert {"roc", "precision_recall", "learning_curve"} <= set(report.figures)
 
 
-def test_an_override_threshold_is_used_verbatim(model_input, search_results):
-    out = score_out_of_fold(model_input, search_results, n_splits=3)
-    estimator = train_model(model_input, search_results)
+def test_an_override_threshold_is_used_verbatim(model_input, out_of_fold, estimator):
     report = build_reporting(
-        out, model_input, estimator, permutation_test=False, override_threshold=0.9
+        out_of_fold, model_input, estimator, permutation_test=False, override_threshold=0.9
     )
     assert report.threshold == 0.9

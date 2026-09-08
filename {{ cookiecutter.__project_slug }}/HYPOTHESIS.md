@@ -1,26 +1,17 @@
 # Hypothesis
 
-> Fill this in before writing code. It is what the experiment is for, and what
-> the final report is measured against.
+Complete this file before you write code.
 
 ## Question
 
-<!-- One sentence. What do you want to know? -->
+<!-- What do you want to know? Write one sentence. -->
 
-## Data
+## Approach
 
-- **Source:**
-- **Rows and grain:** <!-- What does one row represent? -->
-- **Target:** <!-- Column, and what 1 means. -->
-- **Group:** <!-- Column whose rows must not span a fold, or "none — rows are independent". -->
-
-## Success
-
-- **Metric:**
-- **Baseline:** <!-- The number to beat, and where it comes from. -->
-- **Bar:** <!-- What result would count as an answer, including a negative one. -->
+<!-- How will you try to answer it? Name the features, the model, or the
+transformation you think will work, and say why. -->
 
 ## What would change your mind
 
-<!-- Name the result that would tell you the hypothesis is wrong. An experiment
+<!-- Name the result that would show the approach does not work. An experiment
 that cannot fail is not an experiment. -->

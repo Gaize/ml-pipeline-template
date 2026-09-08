@@ -98,7 +98,7 @@ class ClassBalanceLogger(AfterEffect):
 class FilterReportEffect(AfterEffect):
     """Logs per-rule survival for a step that returns `(frame, FilterChain)`.
 
-    Answers "where did all my data go?" before anyone has to ask it.
+    This shows where the data went, before a person must ask.
     """
 
     def __init__(self, prefix: str) -> None:
