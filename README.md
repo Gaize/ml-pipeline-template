@@ -63,10 +63,15 @@ Read `data/ATTRIBUTION.md` in a generated pipeline for the sources.
 
 To use your own data, set `settings.data_path`.
 
+## Support
+
+This template is provided as-is by Gaize. It is not actively maintained, and we
+do not commit to support, fixes, or updates.
+
 ## License
 
-This repository has no license yet.
+MIT, copyright Gaize. Read `LICENSE`.
 
-Two conditions apply. A generated pipeline uses
+Two other licenses apply. A generated pipeline uses
 [KissML](https://github.com/lou-k/kissml), which has a CC BY-NC-ND 4.0 license.
 The supplied dataset has a CC BY 4.0 license and needs attribution.
