@@ -1,0 +1,35 @@
+# Grid search parallelizes across folds; OpenMP threads on top of that oversubscribe.
+export OMP_NUM_THREADS := "1"
+
+default:
+    @just --list
+
+# Install the virtualenv from the lockfile.
+sync:
+    uv sync
+
+# Run the experiment end to end.
+explore *ARGS:
+    uv run run-explore {{ ARGS }}
+
+# Format, fix, sort imports, and type check.
+lint:
+    uv run ruff check --fix .
+    uv run ruff format .
+    uv run ruff check --select I --fix .
+    uv run ty check
+
+# Report lint and type failures without changing files.
+lint-check:
+    uv run ruff check .
+    uv run ruff format --check .
+    uv run ruff check --select I .
+    uv run ty check
+
+# Run the test suite.
+test *ARGS:
+    uv run pytest {{ ARGS }}
+
+# Serve the MLflow UI over the local sqlite store.
+mlflow-ui port="5000":
+    uv run mlflow ui --backend-store-uri sqlite:///mlflow.db --port {{ port }}
